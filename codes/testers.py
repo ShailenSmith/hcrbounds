@@ -53,8 +53,8 @@ from functorch.experimental import replace_all_batch_norm_modules_
 from PIL import Image
 
 
-import cifar10_model
-import mnist_model
+# import cifar10_model
+# import mnist_model
 
 
 matplotlib.use('agg')
@@ -79,119 +79,119 @@ gent = torch.Generator()
 gent.manual_seed(seed_torch)
 
 
-class MNISTdir(MNIST):
-    @property
-    def raw_folder(self) -> str:
-        return os.path.join(self.root, "raw")
+# class MNISTdir(MNIST):
+#     @property
+#     def raw_folder(self) -> str:
+#         return os.path.join(self.root, "raw")
 
-    @property
-    def processed_folder(self) -> str:
-        return os.path.join(self.root, "processed")
+#     @property
+#     def processed_folder(self) -> str:
+#         return os.path.join(self.root, "processed")
 
 
-# Set which GPU to use.
-os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+# # # Set which GPU to use.
+# # os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 
-# Parse the command-line arguments.
-parser = argparse.ArgumentParser()
-parser.add_argument(
-    'name', choices=['CIFAR10', 'MNIST', 'ResNet18', 'Swin_T'])
-parser.add_argument('--limit', action='store_true')
-args = parser.parse_args()
+# # Parse the command-line arguments.
+# parser = argparse.ArgumentParser()
+# parser.add_argument(
+#     'name', choices=['CIFAR10', 'MNIST', 'ResNet18', 'Swin_T'])
+# parser.add_argument('--limit', action='store_true')
+# args = parser.parse_args()
 
-# Set the name to consider.
-name = args.name
+# # Set the name to consider.
+# name = args.name
 
-# Determine whether to take the limit such that the Hammersley-Chapman-Robbins
-# bounds become the Cramer-Rao bound (set limit = True to take that limit).
-limit = args.limit
+# # Determine whether to take the limit such that the Hammersley-Chapman-Robbins
+# # bounds become the Cramer-Rao bound (set limit = True to take that limit).
+# limit = args.limit
 
-# Set the configuration parameters for the model of interest.
-if name == 'CIFAR10':
+# # Set the configuration parameters for the model of interest.
+# if name == 'CIFAR10':
 
-    sigma_scale = 5
-    diffdiv = 500
-    batch_size = 2500
-    num_batches = 1
-    num_pits = 6
+#     sigma_scale = 5
+#     diffdiv = 500
+#     batch_size = 2500
+#     num_batches = 1
+#     num_pits = 6
 
-    def partition(full, ilen):
-        # Note that ilen is superfluous for this particular instantiation.
-        model = torch.nn.Sequential(collections.OrderedDict([
-            *list(list(full.named_children())[0][1].named_children())[:-1]]))
-        final = torch.nn.Sequential(collections.OrderedDict([
-            list(list(full.named_children())[0][1].named_children())[-1]]))
-        return model, final
+#     def partition(full, ilen):
+#         # Note that ilen is superfluous for this particular instantiation.
+#         model = torch.nn.Sequential(collections.OrderedDict([
+#             *list(list(full.named_children())[0][1].named_children())[:-1]]))
+#         final = torch.nn.Sequential(collections.OrderedDict([
+#             list(list(full.named_children())[0][1].named_children())[-1]]))
+#         return model, final
 
-elif name == 'MNIST':
+# elif name == 'MNIST':
 
-    sigma_scale = 1
-    diffdiv = 200
-    batch_size = 5000
-    num_batches = 2
-    num_pits = 10
+#     sigma_scale = 1
+#     diffdiv = 200
+#     batch_size = 5000
+#     num_batches = 2
+#     num_pits = 10
 
-    def partition(full, ilen):
-        # Note that ilen is superfluous for this particular instantiation.
-        model = torch.nn.Sequential(collections.OrderedDict([
-            *(list(full.named_children())[:-1]),
-            *(list(list(
-                full.named_children())[-1][1].named_children())[:-1])]))
-        final = torch.nn.Sequential(collections.OrderedDict([
-            *(list(list(
-                full.named_children())[-1][1].named_children())[-1:])]))
-        return model, final
+#     def partition(full, ilen):
+#         # Note that ilen is superfluous for this particular instantiation.
+#         model = torch.nn.Sequential(collections.OrderedDict([
+#             *(list(full.named_children())[:-1]),
+#             *(list(list(
+#                 full.named_children())[-1][1].named_children())[:-1])]))
+#         final = torch.nn.Sequential(collections.OrderedDict([
+#             *(list(list(
+#                 full.named_children())[-1][1].named_children())[-1:])]))
+#         return model, final
 
-elif name == 'ResNet18':
+# if name == 'ResNet18':
 
-    # Allow the upsampling not to be strictly deterministic.
-    torch.use_deterministic_algorithms(False)
-    sigma_scale = 2
-    diffdiv = 500
-    batch_size = 16
-    num_batches = 8
-    num_pits = 10
+#     # Allow the upsampling not to be strictly deterministic.
+#     torch.use_deterministic_algorithms(False)
+#     sigma_scale = 2
+#     diffdiv = 500
+#     batch_size = 16
+#     num_batches = 8
+#     num_pits = 10
 
-    def partition(full, ilen):
-        model = torch.nn.Sequential(collections.OrderedDict([
-            ('interp', torch.nn.Upsample(size=[ilen, ilen], mode='bilinear')),
-            *(list(full.named_children())[:-2])]))
-        final = torch.nn.Sequential(collections.OrderedDict([
-            *(list(full.named_children())[-2:-1]),
-            ('flatten', torch.nn.Flatten(1)),
-            list(full.named_children())[-1]]))
-        return model, final
+#     def partition(full, ilen):
+#         model = torch.nn.Sequential(collections.OrderedDict([
+#             ('interp', torch.nn.Upsample(size=[ilen, ilen], mode='bilinear')),
+#             *(list(full.named_children())[:-2])]))
+#         final = torch.nn.Sequential(collections.OrderedDict([
+#             *(list(full.named_children())[-2:-1]),
+#             ('flatten', torch.nn.Flatten(1)),
+#             list(full.named_children())[-1]]))
+#         return model, final
 
-elif name == 'Swin_T':
+# elif name == 'Swin_T':
 
-    # Allow the upsampling not to be strictly deterministic.
-    torch.use_deterministic_algorithms(False)
-    sigma_scale = 3
-    diffdiv = 500
-    batch_size = 16
-    num_batches = 8
-    num_pits = 10
+#     # Allow the upsampling not to be strictly deterministic.
+#     torch.use_deterministic_algorithms(False)
+#     sigma_scale = 3
+#     diffdiv = 500
+#     batch_size = 16
+#     num_batches = 8
+#     num_pits = 10
 
-    def partition(full, ilen):
-        model = torch.nn.Sequential(collections.OrderedDict([
-            ('interp', torch.nn.Upsample(size=[ilen, ilen], mode='bilinear')),
-            *(list(full.named_children())[:-5])]))
-        final = torch.nn.Sequential(collections.OrderedDict([
-            *(list(full.named_children())[-5:])]))
-        return model, final
+#     def partition(full, ilen):
+#         model = torch.nn.Sequential(collections.OrderedDict([
+#             ('interp', torch.nn.Upsample(size=[ilen, ilen], mode='bilinear')),
+#             *(list(full.named_children())[:-5])]))
+#         final = torch.nn.Sequential(collections.OrderedDict([
+#             *(list(full.named_children())[-5:])]))
+#         return model, final
 
-if limit:
-    diffdiv = 1000
-    if name == 'CIFAR10':
-        num_pits = 4
-    elif name == 'MNIST':
-        num_pits = 10
+# if limit:
+#     diffdiv = 1000
+#     if name == 'CIFAR10':
+#         num_pits = 4
+#     elif name == 'MNIST':
+#         num_pits = 10
 
-print(f'name = {name}')
-print(f'limit = {limit}')
-print(f'sigma_scale = {sigma_scale}')
-print(f'diffdiv = {diffdiv}')
-print(f'batch_size = {batch_size}')
+# print(f'name = {name}')
+# print(f'limit = {limit}')
+# print(f'sigma_scale = {sigma_scale}')
+# print(f'diffdiv = {diffdiv}')
+# print(f'batch_size = {batch_size}')
 
 
 def worker_init_fn(worker_id):
@@ -288,6 +288,7 @@ def infer(inf_loader, model, final, num_batches):
     # each minibatch gets indexed starting from 0, rather than offset).
     offset = 0
     nclasses = list(final.named_children())[-1][1].out_features
+
     print(f'nclasses = {nclasses}')
     indicators = [None] * nclasses
     outputs = []
@@ -330,7 +331,7 @@ def infer(inf_loader, model, final, num_batches):
     return scores, results, indicators, outputs
 
 
-def iterate(inf_loader, model, final, num_batches, outputsa, num_pits):
+def iterate(inf_loader, model, final, num_batches, outputsa, num_pits, diffdiv):
     """
     Optimizes HCR bounds given a model, data loader, and random outputs
 
@@ -508,251 +509,294 @@ def iterate(inf_loader, model, final, num_batches, outputsa, num_pits):
     return in_pert, out_pert, in_diff, out_diff, scores, results, indicators
 
 
-# Conduct inference.
-# Set the seeds for the random number generators.
-torch.manual_seed(seed_torch)
-np.random.seed(seed=seed_numpy)
-gent.manual_seed(seed_torch)
-# Load the pretrained model.
-if name == 'CIFAR10':
-    preprocess = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
-    ilen = None
-    full = torch.load('cifar10_model.pth')
-elif name == 'MNIST':
-    preprocess = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize((0.1307,), (0.3081,))])
-    ilen = None
-    full = torch.load('mnist_model.pth')
-elif name in ['ResNet18', 'Swin_T']:
-    preprocess = getattr(models, name + '_Weights').DEFAULT.transforms()
-    ilen = preprocess.crop_size[0]
-    preprocess.crop_size = [13 * ilen // 32]
-    preprocess.resize_size = [13 * preprocess.resize_size[0] // 32]
-    full = getattr(models, name.lower())(
-        weights=getattr(models, name + '_Weights').DEFAULT)
-model, final = partition(full, ilen)
-del full
-replace_all_batch_norm_modules_(model)
-model = model.cuda()
-replace_all_batch_norm_modules_(final)
-final = final.cuda()
-print(f'model = {model}')
-print(f'final = {final}')
-print('finished constructing the model...')
-# Construct the data loader.
-if name == 'CIFAR10':
-    infdir = '/datasets01/cifar-pytorch/11222017'
-    dataclass = CIFAR10
-    kwargs = {'train': False, 'download': False, 'transform': preprocess}
-elif name == 'MNIST':
-    infdir = '/datasets01/mnist-pytorch/11222017'
-    dataclass = MNISTdir
-    kwargs = {'train': False, 'download': False, 'transform': preprocess}
-elif name in ['ResNet18', 'Swin_T']:
-    infdir = '/datasets01/imagenet_full_size/061417/val'
-    dataclass = ImageFolder
-    kwargs = {'transform': preprocess}
-inf_loader = torch.utils.data.DataLoader(
-    dataclass(infdir, **kwargs), batch_size=batch_size, shuffle=True,
-    num_workers=4, pin_memory=True, worker_init_fn=worker_init_fn,
-    generator=gent)
-# Generate the scores, results, subset indicators, and probs.
-print('generating scores and results...')
-torch.manual_seed(seed_torch)
-gent.manual_seed(seed_torch)
-s, r, inds, outputs = infer(inf_loader, model, final, num_batches)
-print(f'r = \n{r}')
-# Check that another run generates the same results.
-torch.manual_seed(seed_torch)
-gent.manual_seed(seed_torch)
-_, r2, _, _ = infer(inf_loader, model, final, num_batches)
-if not np.array_equal(r, r2):
-    print(f'r2 = \n{r2}')
-    raise ValueError('Running infer twice generated different results!')
+# # Conduct inference.
+# # Set the seeds for the random number generators.
+# torch.manual_seed(seed_torch)
+# np.random.seed(seed=seed_numpy)
+# gent.manual_seed(seed_torch)
+# # Load the pretrained model.
+# if name == 'CIFAR10':
+#     preprocess = transforms.Compose([
+#         transforms.ToTensor(),
+#         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+#     ilen = None
+#     full = torch.load('cifar10_model.pth')
+# elif name == 'MNIST':
+#     preprocess = transforms.Compose([
+#         transforms.ToTensor(),
+#         transforms.Normalize((0.1307,), (0.3081,))])
+#     ilen = None
+#     full = torch.load('mnist_model.pth')
+# elif name in ['ResNet18', 'Swin_T']:
+#     preprocess = getattr(models, name + '_Weights').DEFAULT.transforms()
+#     ilen = preprocess.crop_size[0]
+#     preprocess.crop_size = [13 * ilen // 32]
+#     preprocess.resize_size = [13 * preprocess.resize_size[0] // 32]
+#     full = getattr(models, name.lower())(
+#         weights=getattr(models, name + '_Weights').DEFAULT)
+# model, final = partition(full, ilen)
+# del full
+# replace_all_batch_norm_modules_(model)
+# model = model.cuda()
+# replace_all_batch_norm_modules_(final)
+# final = final.cuda()
+# print(f'model = {model}')
+# print(f'final = {final}')
+# print('finished constructing the model...')
+# # Construct the data loader.
+# if name == 'CIFAR10':
+#     infdir = '/datasets01/cifar-pytorch/11222017'
+#     dataclass = CIFAR10
+#     kwargs = {'train': False, 'download': False, 'transform': preprocess}
+# elif name == 'MNIST':
+#     infdir = '/datasets01/mnist-pytorch/11222017'
+#     dataclass = MNISTdir
+#     kwargs = {'train': False, 'download': False, 'transform': preprocess}
+# elif name in ['ResNet18', 'Swin_T']:
+#     infdir = '/datasets01/imagenet_full_size/061417/val'
+#     dataclass = ImageFolder
+#     kwargs = {'transform': preprocess}
+# inf_loader = torch.utils.data.DataLoader(
+#     dataclass(infdir, **kwargs), batch_size=batch_size, shuffle=True,
+#     num_workers=4, pin_memory=True, worker_init_fn=worker_init_fn,
+#     generator=gent)
+# # Generate the scores, results, subset indicators, and probs.
+# print('generating scores and results...')
+# torch.manual_seed(seed_torch)
+# gent.manual_seed(seed_torch)
 
-# Create the directory "bounds..." for output, if necessary.
-dir = 'bounds_' + name.lower()
-if limit:
-    dir += '_limit'
-else:
-    dir += '_nolimit'
-try:
-    os.mkdir(dir)
-except FileExistsError:
-    pass
-dir = dir + '/'
+def hcr(inf_loader, model, final, num_batches, seed_torch, batch_size=16, name='ResNet18', num_pits=10, limit=False,
+        num_iter=1):
 
-# Add Gaussian noise to the outputs.
-variance = 0
-numels = 0
-for outs in outputs:
-    variance += np.linalg.norm(outs)**2
-    numels += outs.size
-variance /= numels
-sigma = sigma_scale * math.sqrt(variance)
-# Compute the Hammersley-Chapman-Robbins (HCR) bounds, maximizing over num_iter
-# independent runs.
-hcr = []
-accold = []
-accnew = []
-accoldavg = 0
-accnewavg = 0
-num_iter = 25
-print(f'num_iter = {num_iter}')
-for iter in range(num_iter):
-    print(f'\n\niter = {iter}')
-    outputsa = []
-    for outs in outputs:
-        outputsa.append(outs + np.random.normal(scale=sigma, size=outs.shape))
-    # Backprop from the perturbed outputs to the perturbations of the inputs.
+    if name == 'ResNet18':
+        # Allow the upsampling not to be strictly deterministic.
+        torch.use_deterministic_algorithms(False)
+        sigma_scale = 2
+        diffdiv = 500
+
+        # def partition(full, ilen):
+        #     model = torch.nn.Sequential(collections.OrderedDict([
+        #         ('interp', torch.nn.Upsample(size=[ilen, ilen], mode='bilinear')),
+        #         *(list(full.named_children())[:-2])]))
+        #     final = torch.nn.Sequential(collections.OrderedDict([
+        #         *(list(full.named_children())[-2:-1]),
+        #         ('flatten', torch.nn.Flatten(1)),
+        #         list(full.named_children())[-1]]))
+        #     return model, final
+
+    elif name == 'Swin_T':
+
+        # Allow the upsampling not to be strictly deterministic.
+        torch.use_deterministic_algorithms(False)
+        sigma_scale = 3
+        diffdiv = 500
+
+        # def partition(full, ilen):
+        #     model = torch.nn.Sequential(collections.OrderedDict([
+        #         ('interp', torch.nn.Upsample(size=[ilen, ilen], mode='bilinear')),
+        #         *(list(full.named_children())[:-5])]))
+        #     final = torch.nn.Sequential(collections.OrderedDict([
+        #         *(list(full.named_children())[-5:])]))
+        #     return model, final
+
     torch.manual_seed(seed_torch)
     gent.manual_seed(seed_torch)
-    _, _, in_diff, out_diff, _, rpert, _ = iterate(
-        inf_loader, model, final, num_batches, outputsa, num_pits)
-    print(f'rpert = {rpert}')
-    # Compare accuracies before and after perturbing.
-    accold.append(np.sum(r[:rpert.size]) / rpert.size)
-    accnew.append(np.sum(rpert) / rpert.size)
-    accoldavg += accold[-1]
-    accnewavg += accnew[-1]
-    print(f'accold[-1] = {accold[-1]}')
-    print(f'accnew[-1] = {accnew[-1]}')
-    # Calculate the Hammersely-Chapman-Robbins bounds.
-    numerator = scipy.fft.dctn(in_diff, axes=(2, 3), norm='ortho')
-    numerator = np.square(numerator)
-    print(f'numerator = \n{numerator}')
-    print(f'numerator.shape = {numerator.shape}')
-    # Be sure to use the same sigma as used to generate outputsa.
-    denominator = np.exp(np.square(np.linalg.norm(out_diff.reshape(
-        (out_diff.shape[0], out_diff.size // out_diff.shape[0])), axis=1))
-        / sigma**2) - 1
-    print(f'denominator = \n{denominator}')
-    print(f'denominator.shape = {denominator.shape}')
-    hcr.append(numerator / denominator[:, None, None, None])
-    hcr[-1] = np.sqrt(hcr[-1])
-    print(f'hcr[-1] = \n{hcr[-1]}')
-    print(f'hcr[-1].shape = {hcr[-1].shape}')
-    out_diff_view = out_diff.reshape(
-        (out_diff.shape[0], out_diff.size // out_diff.shape[0]))
-    print('np.linalg.norm(out_diff_view, axis=1) / sigma = \n{}'.format(
-        np.linalg.norm(out_diff_view, axis=1) / sigma))
-    print('np.linalg.norm(out_diff_view, axis=1) = \n{}'.format(
-        np.linalg.norm(out_diff_view, axis=1)))
-    print(f'sigma = {sigma}')
-# Print the accuracies.
-accoldavg /= num_iter
-accnewavg /= num_iter
-print(f'accoldavg = {accoldavg}')
-print(f'accnewavg = {accnewavg}')
-print(f'accold = {accold}')
-print(f'accnew = {accnew}')
-# For every image in the minibatch, identify the best bound attained over all
-# perturbations indexed by iter in the for loop above; hcr is a list of these
-# bounds, each specified for every entry in the image's DCT.
-hcrmax = np.zeros(hcr[0].shape)
-for numex in range(len(hcr)):
-    hcrmax = np.maximum(hcrmax, hcr[numex])
-print(f'hcrmax = \n{hcrmax}')
-print(f'hcrmax.shape = {hcrmax.shape}')
-if name in ['CIFAR10', 'MNIST']:
-    # Read the input images, modify them via the bounds, and save both to disk.
-    pert = np.zeros(hcrmax.shape)
-    for k, (input, _) in enumerate(inf_loader):
-        print(f'{k} of {num_batches} batches processed.')
-        input = input.detach().numpy()
-        for im in range(input.shape[0]):
-            pert[im + k * input.shape[0], :, :, :] = input[im, :, :, :]
-        if k == num_batches - 1:
-            break
-    # Save the original, unperturbed images and the modified, perturbed ones.
-    # (iter = 0 for the unperturbed ones and iter = 1 for the perturbed ones.)
-    for iter in range(2):
-        for im in range(pert.shape[0]):
-            # Save the image, reversing the normalization.
-            if name == 'CIFAR10':
-                unnorm = (pert[im, :, :, :] + 1) / 2
-                unnorm = np.transpose(unnorm, (1, 2, 0))
-            elif name == 'MNIST':
-                unnorm = 0.3081 * pert[im, 0, :, :] + 0.1307
-            unnorm = np.clip(255 * unnorm, 0, 255).astype(np.uint8)
-            img = Image.fromarray(unnorm)
-            filename = dir + '/'
-            if iter == 0:
-                filename = filename + 'unperturbed'
-            else:
-                filename = filename + 'perturbed'
-            filename = filename + str(im) + '.jpg'
-            img.save(filename)
-        if iter == 0:
-            # Perturb according to the HCR bounds.
-            randbits = np.random.choice([-1, 1], size=hcrmax.shape)
-            pert = scipy.fft.dctn(pert, axes=(2, 3), norm='ortho')
-            pert = pert + randbits * hcrmax
-            pert = scipy.fft.idctn(pert, axes=(2, 3), norm='ortho')
-# Save summaries, first unfiltered, then filtering out low frequencies.
-for iter in range(2):
-    if iter == 1:
-        # Discard high frequencies.
-        if name in ['CIFAR10', 'MNIST']:
-            lowfreq = 8
-        elif name in ['ResNet18', 'Swin_T']:
-            lowfreq = 32
-        hcrmax = hcrmax[:, :, :lowfreq, :lowfreq]
-    # Save the best bounds as images.
-    for im in range(hcrmax.shape[0]):
-        # Save the unclipped image, averaging over the (RGB) color channels.
-        averaged = scipy.fft.idctn(
-            hcrmax[im, :, :, :], axes=(1, 2), norm='ortho')
-        averaged = 255 * np.sum(averaged, axis=0) / averaged.shape[0]
-        img = Image.fromarray(averaged.astype(np.uint8))
-        filename = dir + '/' + 'unclipped'
-        if iter == 1:
-            filename += '_filtered'
-        filename += str(im) + '.png'
-        img.save(filename)
-        # Save a clipped image.
-        averaged2 = np.minimum(averaged, 15)
-        img2 = Image.fromarray(averaged2.astype(np.uint8))
-        filename = dir + '/' + 'clipped'
-        if iter == 1:
-            filename += '_filtered'
-        filename += str(im) + '.jpg'
-        img2.save(filename)
-    # Histogram the best bounds.
-    hist = np.histogram(hcrmax, bins=256)
-    hist = [hist[0], hist[1], hist[0] / np.sum(hist[0])]
-    for ind in range(len(hist)):
-        if iter == 1:
-            print(f'filtered hist[{ind}] = \n{hist[ind]}')
-        else:
-            print(f'unfiltered hist[{ind}] = \n{hist[ind]}')
-    # Plot histograms of the best bounds.
-    plt.figure(figsize=(3, 3))
-    title = name + ' '
-    if iter == 0:
-        title += 'unfiltered'
+    s, r, inds, outputs = infer(inf_loader, model, final, num_batches)
+    print(f'r = \n{r}')
+    # Check that another run generates the same results.
+    torch.manual_seed(seed_torch)
+    gent.manual_seed(seed_torch)
+    _, r2, _, _ = infer(inf_loader, model, final, num_batches)
+    if not np.array_equal(r, r2):
+        print(f'r2 = \n{r2}')
+        raise ValueError('Running infer twice generated different results!')
+
+    # Create the directory "bounds..." for output, if necessary.
+    dir = 'bounds_' + name.lower()
+    if limit:
+        dir += '_limit'
     else:
-        title += 'filtered'
-    plt.title(title)
-    plt.hist(hcrmax.flatten(), bins=hist[1], color='k')
-    plt.xlabel('bound on the standard deviation')
-    plt.ylabel('number of modes')
-    if name == 'CIFAR10':
-        if iter == 0:
-            plt.xlim((0, 0.25))
-        else:
-            plt.xlim((0, 0.375))
-    elif name == 'MNIST':
-        if iter == 0:
-            plt.xlim((0, 1))
-        else:
-            plt.xlim((0, 1.5))
-    elif name == 'ResNet18':
-        plt.xlim((0, 0.02))
-    elif name == 'Swin_T':
-        plt.xlim((0, 0.01))
-    filename = dir + '/' + title.replace(' ', '_') + '.jpg'
-    plt.savefig(filename, bbox_inches='tight')
+        dir += '_nolimit'
+    try:
+        os.mkdir(dir)
+    except FileExistsError:
+        pass
+    dir = dir + '/'
+
+    # Add Gaussian noise to the outputs.
+    variance = 0
+    numels = 0
+    for outs in outputs:
+        variance += np.linalg.norm(outs)**2
+        numels += outs.size
+    variance /= numels
+    sigma = sigma_scale * math.sqrt(variance)
+    # Compute the Hammersley-Chapman-Robbins (HCR) bounds, maximizing over num_iter
+    # independent runs.
+    hcr = []
+    accold = []
+    accnew = []
+    accoldavg = 0
+    accnewavg = 0
+    # num_iter = 25
+    print(f'num_iter = {num_iter}')
+    for iter in range(num_iter):
+        print(f'\n\niter = {iter}')
+        outputsa = []
+        for outs in outputs:
+            outputsa.append(outs + np.random.normal(scale=sigma, size=outs.shape))
+        # Backprop from the perturbed outputs to the perturbations of the inputs.
+        torch.manual_seed(seed_torch)
+        gent.manual_seed(seed_torch)
+        _, _, in_diff, out_diff, _, rpert, _ = iterate(
+            inf_loader, model, final, num_batches, outputsa, num_pits, diffdiv)
+        print(f'rpert = {rpert}')
+        # Compare accuracies before and after perturbing.
+        accold.append(np.sum(r[:rpert.size]) / rpert.size)
+        accnew.append(np.sum(rpert) / rpert.size)
+        accoldavg += accold[-1]
+        accnewavg += accnew[-1]
+        print(f'accold[-1] = {accold[-1]}')
+        print(f'accnew[-1] = {accnew[-1]}')
+        # Calculate the Hammersely-Chapman-Robbins bounds.
+        numerator = scipy.fft.dctn(in_diff, axes=(2, 3), norm='ortho')
+        numerator = np.square(numerator)
+        print(f'numerator = \n{numerator}')
+        print(f'numerator.shape = {numerator.shape}')
+        # Be sure to use the same sigma as used to generate outputsa.
+        denominator = np.exp(np.square(np.linalg.norm(out_diff.reshape(
+            (out_diff.shape[0], out_diff.size // out_diff.shape[0])), axis=1))
+            / sigma**2) - 1
+        print(f'denominator = \n{denominator}')
+        print(f'denominator.shape = {denominator.shape}')
+        hcr.append(numerator / denominator[:, None, None, None])
+        hcr[-1] = np.sqrt(hcr[-1])
+        print(f'hcr[-1] = \n{hcr[-1]}')
+        print(f'hcr[-1].shape = {hcr[-1].shape}')
+        out_diff_view = out_diff.reshape(
+            (out_diff.shape[0], out_diff.size // out_diff.shape[0]))
+        print('np.linalg.norm(out_diff_view, axis=1) / sigma = \n{}'.format(
+            np.linalg.norm(out_diff_view, axis=1) / sigma))
+        print('np.linalg.norm(out_diff_view, axis=1) = \n{}'.format(
+            np.linalg.norm(out_diff_view, axis=1)))
+        print(f'sigma = {sigma}')
+    # Print the accuracies.
+    accoldavg /= num_iter
+    accnewavg /= num_iter
+    print(f'accoldavg = {accoldavg}')
+    print(f'accnewavg = {accnewavg}')
+    print(f'accold = {accold}')
+    print(f'accnew = {accnew}')
+    # For every image in the minibatch, identify the best bound attained over all
+    # perturbations indexed by iter in the for loop above; hcr is a list of these
+    # bounds, each specified for every entry in the image's DCT.
+    hcrmax = np.zeros(hcr[0].shape)
+    for numex in range(len(hcr)):
+        hcrmax = np.maximum(hcrmax, hcr[numex])
+    print(f'hcrmax = \n{hcrmax}')
+    print(f'hcrmax.shape = {hcrmax.shape}')
+
+    return hcr, hcrmax
+
+
+# hcr, hcrmax = hcr(inf_loader, model, final, num_batches)
+
+# if name in ['CIFAR10', 'MNIST']:
+#     # Read the input images, modify them via the bounds, and save both to disk.
+#     pert = np.zeros(hcrmax.shape)
+#     for k, (input, _) in enumerate(inf_loader):
+#         print(f'{k} of {num_batches} batches processed.')
+#         input = input.detach().numpy()
+#         for im in range(input.shape[0]):
+#             pert[im + k * input.shape[0], :, :, :] = input[im, :, :, :]
+#         if k == num_batches - 1:
+#             break
+#     # Save the original, unperturbed images and the modified, perturbed ones.
+#     # (iter = 0 for the unperturbed ones and iter = 1 for the perturbed ones.)
+#     for iter in range(2):
+#         for im in range(pert.shape[0]):
+#             # Save the image, reversing the normalization.
+#             if name == 'CIFAR10':
+#                 unnorm = (pert[im, :, :, :] + 1) / 2
+#                 unnorm = np.transpose(unnorm, (1, 2, 0))
+#             elif name == 'MNIST':
+#                 unnorm = 0.3081 * pert[im, 0, :, :] + 0.1307
+#             unnorm = np.clip(255 * unnorm, 0, 255).astype(np.uint8)
+#             img = Image.fromarray(unnorm)
+#             filename = dir + '/'
+#             if iter == 0:
+#                 filename = filename + 'unperturbed'
+#             else:
+#                 filename = filename + 'perturbed'
+#             filename = filename + str(im) + '.jpg'
+#             img.save(filename)
+#         if iter == 0:
+#             # Perturb according to the HCR bounds.
+#             randbits = np.random.choice([-1, 1], size=hcrmax.shape)
+#             pert = scipy.fft.dctn(pert, axes=(2, 3), norm='ortho')
+#             pert = pert + randbits * hcrmax
+#             pert = scipy.fft.idctn(pert, axes=(2, 3), norm='ortho')
+# # Save summaries, first unfiltered, then filtering out low frequencies.
+# for iter in range(2):
+#     if iter == 1:
+#         # Discard high frequencies.
+#         if name in ['CIFAR10', 'MNIST']:
+#             lowfreq = 8
+#         elif name in ['ResNet18', 'Swin_T']:
+#             lowfreq = 32
+#         hcrmax = hcrmax[:, :, :lowfreq, :lowfreq]
+#     # Save the best bounds as images.
+#     for im in range(hcrmax.shape[0]):
+#         # Save the unclipped image, averaging over the (RGB) color channels.
+#         averaged = scipy.fft.idctn(
+#             hcrmax[im, :, :, :], axes=(1, 2), norm='ortho')
+#         averaged = 255 * np.sum(averaged, axis=0) / averaged.shape[0]
+#         img = Image.fromarray(averaged.astype(np.uint8))
+#         filename = dir + '/' + 'unclipped'
+#         if iter == 1:
+#             filename += '_filtered'
+#         filename += str(im) + '.png'
+#         img.save(filename)
+#         # Save a clipped image.
+#         averaged2 = np.minimum(averaged, 15)
+#         img2 = Image.fromarray(averaged2.astype(np.uint8))
+#         filename = dir + '/' + 'clipped'
+#         if iter == 1:
+#             filename += '_filtered'
+#         filename += str(im) + '.jpg'
+#         img2.save(filename)
+#     # Histogram the best bounds.
+#     hist = np.histogram(hcrmax, bins=256)
+#     hist = [hist[0], hist[1], hist[0] / np.sum(hist[0])]
+#     for ind in range(len(hist)):
+#         if iter == 1:
+#             print(f'filtered hist[{ind}] = \n{hist[ind]}')
+#         else:
+#             print(f'unfiltered hist[{ind}] = \n{hist[ind]}')
+#     # Plot histograms of the best bounds.
+#     plt.figure(figsize=(3, 3))
+#     title = name + ' '
+#     if iter == 0:
+#         title += 'unfiltered'
+#     else:
+#         title += 'filtered'
+#     plt.title(title)
+#     plt.hist(hcrmax.flatten(), bins=hist[1], color='k')
+#     plt.xlabel('bound on the standard deviation')
+#     plt.ylabel('number of modes')
+#     # if name == 'CIFAR10':
+#     #     if iter == 0:
+#     #         plt.xlim((0, 0.25))
+#     #     else:
+#     #         plt.xlim((0, 0.375))
+#     # elif name == 'MNIST':
+#     #     if iter == 0:
+#     #         plt.xlim((0, 1))
+#     #     else:
+#     #         plt.xlim((0, 1.5))
+#     if name == 'ResNet18':
+#         plt.xlim((0, 0.02))
+#     elif name == 'Swin_T':
+#         plt.xlim((0, 0.01))
+#     filename = dir + '/' + title.replace(' ', '_') + '.jpg'
+#     plt.savefig(filename, bbox_inches='tight')
