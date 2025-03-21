@@ -52,6 +52,8 @@ from torchvision.datasets import CIFAR10, MNIST, ImageFolder
 from functorch.experimental import replace_all_batch_norm_modules_
 from PIL import Image
 
+import wandb
+
 
 # import cifar10_model
 # import mnist_model
@@ -696,107 +698,60 @@ def hcr(inf_loader, model, final, num_batches, seed_torch, batch_size=16, name='
     print(f'hcrmax = \n{hcrmax}')
     print(f'hcrmax.shape = {hcrmax.shape}')
 
+    # Save summaries, first unfiltered, then filtering out low frequencies.
+    for iter in range(2):
+        if iter == 1:
+            # Discard high frequencies.
+            if name in ['ResNet18', 'Swin_T']:
+                lowfreq = 32
+            hcrmax = hcrmax[:, :, :lowfreq, :lowfreq]
+        # Save the best bounds as images.
+        for im in range(hcrmax.shape[0]):
+            # Save the unclipped image, averaging over the (RGB) color channels.
+            averaged = scipy.fft.idctn(
+                hcrmax[im, :, :, :], axes=(1, 2), norm='ortho')
+            averaged = 255 * np.sum(averaged, axis=0) / averaged.shape[0]
+            img = Image.fromarray(averaged.astype(np.uint8))
+            filename = dir + '/' + 'unclipped'
+            if iter == 1:
+                filename += '_filtered'
+            filename += str(im) + '.png'
+            img.save(filename)
+            # Save a clipped image.
+            averaged2 = np.minimum(averaged, 15)
+            img2 = Image.fromarray(averaged2.astype(np.uint8))
+            filename = dir + '/' + 'clipped'
+            if iter == 1:
+                filename += '_filtered'
+            filename += str(im) + '.jpg'
+            img2.save(filename)
+        # Histogram the best bounds.
+        hist = np.histogram(hcrmax, bins=256)
+        hist = [hist[0], hist[1], hist[0] / np.sum(hist[0])]
+        for ind in range(len(hist)):
+            if iter == 1:
+                print(f'filtered hist[{ind}] = \n{hist[ind]}')
+            else:
+                print(f'unfiltered hist[{ind}] = \n{hist[ind]}')
+        # Plot histograms of the best bounds.
+        plt.figure(figsize=(3, 3))
+        title = name + ' '
+        if iter == 0:
+            title += 'unfiltered'
+        else:
+            title += 'filtered'
+        plt.title(title)
+        plt.hist(hcrmax.flatten(), bins=hist[1], color='k')
+        plt.xlabel('bound on the standard deviation')
+        plt.ylabel('number of modes')
+
+        if name == 'ResNet18':
+            plt.xlim((0, 0.02))
+        elif name == 'Swin_T':
+            plt.xlim((0, 0.01))
+        histogram_path = dir + '/hist/' + title.replace(' ', '_') + '.jpg'
+        plt.savefig(histogram_path, bbox_inches='tight')
+        wandb.log({title: plt})
+
+
     return hcr, hcrmax
-
-
-# hcr, hcrmax = hcr(inf_loader, model, final, num_batches)
-
-# if name in ['CIFAR10', 'MNIST']:
-#     # Read the input images, modify them via the bounds, and save both to disk.
-#     pert = np.zeros(hcrmax.shape)
-#     for k, (input, _) in enumerate(inf_loader):
-#         print(f'{k} of {num_batches} batches processed.')
-#         input = input.detach().numpy()
-#         for im in range(input.shape[0]):
-#             pert[im + k * input.shape[0], :, :, :] = input[im, :, :, :]
-#         if k == num_batches - 1:
-#             break
-#     # Save the original, unperturbed images and the modified, perturbed ones.
-#     # (iter = 0 for the unperturbed ones and iter = 1 for the perturbed ones.)
-#     for iter in range(2):
-#         for im in range(pert.shape[0]):
-#             # Save the image, reversing the normalization.
-#             if name == 'CIFAR10':
-#                 unnorm = (pert[im, :, :, :] + 1) / 2
-#                 unnorm = np.transpose(unnorm, (1, 2, 0))
-#             elif name == 'MNIST':
-#                 unnorm = 0.3081 * pert[im, 0, :, :] + 0.1307
-#             unnorm = np.clip(255 * unnorm, 0, 255).astype(np.uint8)
-#             img = Image.fromarray(unnorm)
-#             filename = dir + '/'
-#             if iter == 0:
-#                 filename = filename + 'unperturbed'
-#             else:
-#                 filename = filename + 'perturbed'
-#             filename = filename + str(im) + '.jpg'
-#             img.save(filename)
-#         if iter == 0:
-#             # Perturb according to the HCR bounds.
-#             randbits = np.random.choice([-1, 1], size=hcrmax.shape)
-#             pert = scipy.fft.dctn(pert, axes=(2, 3), norm='ortho')
-#             pert = pert + randbits * hcrmax
-#             pert = scipy.fft.idctn(pert, axes=(2, 3), norm='ortho')
-# # Save summaries, first unfiltered, then filtering out low frequencies.
-# for iter in range(2):
-#     if iter == 1:
-#         # Discard high frequencies.
-#         if name in ['CIFAR10', 'MNIST']:
-#             lowfreq = 8
-#         elif name in ['ResNet18', 'Swin_T']:
-#             lowfreq = 32
-#         hcrmax = hcrmax[:, :, :lowfreq, :lowfreq]
-#     # Save the best bounds as images.
-#     for im in range(hcrmax.shape[0]):
-#         # Save the unclipped image, averaging over the (RGB) color channels.
-#         averaged = scipy.fft.idctn(
-#             hcrmax[im, :, :, :], axes=(1, 2), norm='ortho')
-#         averaged = 255 * np.sum(averaged, axis=0) / averaged.shape[0]
-#         img = Image.fromarray(averaged.astype(np.uint8))
-#         filename = dir + '/' + 'unclipped'
-#         if iter == 1:
-#             filename += '_filtered'
-#         filename += str(im) + '.png'
-#         img.save(filename)
-#         # Save a clipped image.
-#         averaged2 = np.minimum(averaged, 15)
-#         img2 = Image.fromarray(averaged2.astype(np.uint8))
-#         filename = dir + '/' + 'clipped'
-#         if iter == 1:
-#             filename += '_filtered'
-#         filename += str(im) + '.jpg'
-#         img2.save(filename)
-#     # Histogram the best bounds.
-#     hist = np.histogram(hcrmax, bins=256)
-#     hist = [hist[0], hist[1], hist[0] / np.sum(hist[0])]
-#     for ind in range(len(hist)):
-#         if iter == 1:
-#             print(f'filtered hist[{ind}] = \n{hist[ind]}')
-#         else:
-#             print(f'unfiltered hist[{ind}] = \n{hist[ind]}')
-#     # Plot histograms of the best bounds.
-#     plt.figure(figsize=(3, 3))
-#     title = name + ' '
-#     if iter == 0:
-#         title += 'unfiltered'
-#     else:
-#         title += 'filtered'
-#     plt.title(title)
-#     plt.hist(hcrmax.flatten(), bins=hist[1], color='k')
-#     plt.xlabel('bound on the standard deviation')
-#     plt.ylabel('number of modes')
-#     # if name == 'CIFAR10':
-#     #     if iter == 0:
-#     #         plt.xlim((0, 0.25))
-#     #     else:
-#     #         plt.xlim((0, 0.375))
-#     # elif name == 'MNIST':
-#     #     if iter == 0:
-#     #         plt.xlim((0, 1))
-#     #     else:
-#     #         plt.xlim((0, 1.5))
-#     if name == 'ResNet18':
-#         plt.xlim((0, 0.02))
-#     elif name == 'Swin_T':
-#         plt.xlim((0, 0.01))
-#     filename = dir + '/' + title.replace(' ', '_') + '.jpg'
-#     plt.savefig(filename, bbox_inches='tight')
