@@ -53,6 +53,7 @@ from functorch.experimental import replace_all_batch_norm_modules_
 from PIL import Image
 
 import wandb
+from tqdm import tqdm  # Add tqdm import
 
 
 # import cifar10_model
@@ -333,7 +334,7 @@ def infer(inf_loader, model, final, num_batches):
     return scores, results, indicators, outputs
 
 
-def iterate(inf_loader, model, final, num_batches, outputsa, num_pits, diffdiv):
+def iterate(inf_loader, model, final, num_batches, outputsa, num_pits, diffdiv, custom_indiff=None):
     """
     Optimizes HCR bounds given a model, data loader, and random outputs
 
@@ -396,7 +397,7 @@ def iterate(inf_loader, model, final, num_batches, outputsa, num_pits, diffdiv):
     indicators = [None] * nclasses
     in_pert = []
     out_pert = []
-    for k, (input, target) in enumerate(inf_loader):
+    for k, (input, target) in enumerate(tqdm(inf_loader, desc="Processing batches")):
         print(f'{k} of {num_batches} batches processed.')
         # Run inference.
         target = target.cuda(non_blocking=True)
@@ -422,60 +423,70 @@ def iterate(inf_loader, model, final, num_batches, outputsa, num_pits, diffdiv):
         # the LSQR approximations have converged).
         perturbed = input.clone()
         cdiff = diff.reshape(outsize).copy()
-        for _ in range(num_pits):
-            # Construct the new target cdiff, normalizing it and then matching
-            # the Euclidean norms of the examples in the minibatch from diff.
-            cdiff /= np.linalg.norm(cdiff, axis=1)[:, None]
-            cdiff *= np.linalg.norm(diff.reshape(outsize), axis=1)[:, None]
-            atol = 2e-2 * np.min(np.linalg.norm(cdiff, axis=1))
-            cdiff = cdiff.flatten()
-            # Solve for the perturbation delta to the input which will yield
-            # the desired difference cdiff at the output.
-            (_, vjpfunc) = torch.func.vjp(model, perturbed)
+        if custom_indiff is None:
+            for _ in range(num_pits):
+                # Construct the new target cdiff, normalizing it and then matching
+                # the Euclidean norms of the examples in the minibatch from diff.
+                cdiff /= np.linalg.norm(cdiff, axis=1)[:, None]
+                cdiff *= np.linalg.norm(diff.reshape(outsize), axis=1)[:, None]
+                atol = 2e-2 * np.min(np.linalg.norm(cdiff, axis=1))
+                cdiff = cdiff.flatten()
+                # Solve for the perturbation delta to the input which will yield
+                # the desired difference cdiff at the output.
+                (_, vjpfunc) = torch.func.vjp(model, perturbed)
 
-            def rmatvec(v):
-                return vjpfunc(torch.from_numpy(v.reshape(list(
-                    output.shape))).cuda())[0].cpu().detach().numpy().flatten()
+                def rmatvec(v):
+                    return vjpfunc(torch.from_numpy(v.reshape(list(
+                        output.shape))).cuda())[0].cpu().detach().numpy().flatten()
 
-            def matvec(v):
-                return torch.func.jvp(
-                    model, (perturbed,), (torch.from_numpy(v.reshape(list(
-                        perturbed.shape))).cuda(),))[1].cpu().detach().numpy(
-                            ).flatten()
+                def matvec(v):
+                    return torch.func.jvp(
+                        model, (perturbed,), (torch.from_numpy(v.reshape(list(
+                            perturbed.shape))).cuda(),))[1].cpu().detach().numpy(
+                                ).flatten()
 
-            linearop = scipy.sparse.linalg.LinearOperator(
-                shape=(output.numel(), perturbed.numel()), matvec=matvec,
-                rmatvec=rmatvec, matmat=matvec, dtype=np.float32,
-                rmatmat=rmatvec)
-            (delta, _, itn, r1norm) = scipy.sparse.linalg.lsqr(
-                linearop, cdiff, atol=atol, damp=0)[:4]
-            print(f'itn = {itn}')
-            print(f'r1norm / norm(cdiff) = {r1norm / np.linalg.norm(cdiff)}')
-            # Calculate the perturbed inputs.
-            perturbed = input + torch.from_numpy(
-                delta.reshape(list(input.shape))).float().cuda()
-            # Run inference with the perturbed inputs.
-            outputpert = model(perturbed)
-            # Update the corresponding perturbations of the outputs.
-            cdiff = outputpert - output
-            cdiff = cdiff.cpu().detach().numpy().reshape(outsize)
-        # Check the size of the difference.
-        print('norm of output = {}'.format(np.linalg.norm(
-            output.cpu().detach().numpy())))
-        print('norm of output-outputpert = {}'.format(np.linalg.norm(
-            (output - outputpert).cpu().detach().numpy())))
-        print('norm of diff = {}'.format(np.linalg.norm(diff)))
-        print(
-            '[norm(diff)-norm(output-outputpert)] / [norm(diff)] = {}'.format(
-                1 - np.linalg.norm(
-                    (output - outputpert).cpu().detach().numpy())
-                / np.linalg.norm(diff)))
+                linearop = scipy.sparse.linalg.LinearOperator(
+                    shape=(output.numel(), perturbed.numel()), matvec=matvec,
+                    rmatvec=rmatvec, matmat=matvec, dtype=np.float32,
+                    rmatmat=rmatvec)
+                (delta, _, itn, r1norm) = scipy.sparse.linalg.lsqr(
+                    linearop, cdiff, atol=atol, damp=0)[:4]
+                print(f'itn = {itn}')
+                print(f'r1norm / norm(cdiff) = {r1norm / np.linalg.norm(cdiff)}')
+                # Calculate the perturbed inputs.
+                perturbed = input + torch.from_numpy(
+                    delta.reshape(list(input.shape))).float().cuda()
+                # Run inference with the perturbed inputs.
+                outputpert = model(perturbed)
+                # Update the corresponding perturbations of the outputs.
+                cdiff = outputpert - output
+                cdiff = cdiff.cpu().detach().numpy().reshape(outsize)
+        # # Check the size of the difference.
+        # print('norm of output = {}'.format(np.linalg.norm(
+        #     output.cpu().detach().numpy())))
+        # print('norm of output-outputpert = {}'.format(np.linalg.norm(
+        #     (output - outputpert).cpu().detach().numpy())))
+        # print('norm of diff = {}'.format(np.linalg.norm(diff)))
+        # print(
+        #     '[norm(diff)-norm(output-outputpert)] / [norm(diff)] = {}'.format(
+        #         1 - np.linalg.norm(
+        #             (output - outputpert).cpu().detach().numpy())
+        #         / np.linalg.norm(diff)))
         # Store the perturbed inputs and outputs from the current minibatch.
-        in_pert.append(perturbed.cpu().detach().numpy())
-        out_pert.append(outputpert.cpu().detach().numpy())
         # Store the perturbations from the current minibatch.
-        indiff = (perturbed - input).cpu().detach().numpy()
-        outdiff = (outputpert - output).cpu().detach().numpy()
+        if custom_indiff is not None:
+            custom_perturbed = input + custom_indiff
+            custom_outputpert = model(custom_perturbed)
+            indiff = custom_indiff.cpu().detach().numpy()
+            outdiff = (custom_outputpert - output).cpu().detach().numpy()
+            in_pert.append(custom_perturbed.cpu().detach().numpy())
+            out_pert.append(custom_outputpert.cpu().detach().numpy())
+        else:
+            indiff = (perturbed - input).cpu().detach().numpy()
+            outdiff = (outputpert - output).cpu().detach().numpy()
+            in_pert.append(perturbed.cpu().detach().numpy())
+            out_pert.append(outputpert.cpu().detach().numpy())
+
         if k == 0:
             in_diff = indiff.copy()
             out_diff = outdiff.copy()
@@ -567,8 +578,8 @@ def iterate(inf_loader, model, final, num_batches, outputsa, num_pits, diffdiv):
 # torch.manual_seed(seed_torch)
 # gent.manual_seed(seed_torch)
 
-def hcr(inf_loader, model, final, num_batches, seed_torch, batch_size=16, name='ResNet18', num_pits=10, limit=False,
-        num_iter=1):
+def hcr(inf_loader, model, final, num_batches, seed_torch, name='ResNet18', num_pits=10, limit=False,
+        num_iter=1, hcr_run_name='hcr_test', custom_indiff=None):
 
     if name == 'ResNet18':
         # Allow the upsampling not to be strictly deterministic.
@@ -603,7 +614,9 @@ def hcr(inf_loader, model, final, num_batches, seed_torch, batch_size=16, name='
 
     torch.manual_seed(seed_torch)
     gent.manual_seed(seed_torch)
+    print("Inferring...")
     s, r, inds, outputs = infer(inf_loader, model, final, num_batches)
+    print("Done inferring.")
     print(f'r = \n{r}')
     # Check that another run generates the same results.
     torch.manual_seed(seed_torch)
@@ -614,7 +627,7 @@ def hcr(inf_loader, model, final, num_batches, seed_torch, batch_size=16, name='
         raise ValueError('Running infer twice generated different results!')
 
     # Create the directory "bounds..." for output, if necessary.
-    dir = 'bounds_' + name.lower()
+    dir = f'results/hcr/{hcr_run_name}'
     if limit:
         dir += '_limit'
     else:
@@ -643,7 +656,7 @@ def hcr(inf_loader, model, final, num_batches, seed_torch, batch_size=16, name='
     # num_iter = 25
     print(f'num_iter = {num_iter}')
     for iter in range(num_iter):
-        print(f'\n\niter = {iter}')
+        print(f'\n\n------------------------ iter = {iter} ----------------------------')
         outputsa = []
         for outs in outputs:
             outputsa.append(outs + np.random.normal(scale=sigma, size=outs.shape))
@@ -651,7 +664,8 @@ def hcr(inf_loader, model, final, num_batches, seed_torch, batch_size=16, name='
         torch.manual_seed(seed_torch)
         gent.manual_seed(seed_torch)
         _, _, in_diff, out_diff, _, rpert, _ = iterate(
-            inf_loader, model, final, num_batches, outputsa, num_pits, diffdiv)
+            inf_loader, model, final, num_batches, outputsa, num_pits, diffdiv,
+            custom_indiff=custom_indiff)
         print(f'rpert = {rpert}')
         # Compare accuracies before and after perturbing.
         accold.append(np.sum(r[:rpert.size]) / rpert.size)
@@ -663,24 +677,25 @@ def hcr(inf_loader, model, final, num_batches, seed_torch, batch_size=16, name='
         # Calculate the Hammersely-Chapman-Robbins bounds.
         numerator = scipy.fft.dctn(in_diff, axes=(2, 3), norm='ortho')
         numerator = np.square(numerator)
-        print(f'numerator = \n{numerator}')
+        # print(f'numerator = \n{numerator}')
         print(f'numerator.shape = {numerator.shape}')
         # Be sure to use the same sigma as used to generate outputsa.
         denominator = np.exp(np.square(np.linalg.norm(out_diff.reshape(
             (out_diff.shape[0], out_diff.size // out_diff.shape[0])), axis=1))
             / sigma**2) - 1
-        print(f'denominator = \n{denominator}')
+        # print(f'denominator = \n{denominator}')
         print(f'denominator.shape = {denominator.shape}')
         hcr.append(numerator / denominator[:, None, None, None])
         hcr[-1] = np.sqrt(hcr[-1])
-        print(f'hcr[-1] = \n{hcr[-1]}')
+        # print(f'hcr[-1] = \n{hcr[-1]}')
+        print("HCR calculated for iter", iter)
         print(f'hcr[-1].shape = {hcr[-1].shape}')
-        out_diff_view = out_diff.reshape(
-            (out_diff.shape[0], out_diff.size // out_diff.shape[0]))
-        print('np.linalg.norm(out_diff_view, axis=1) / sigma = \n{}'.format(
-            np.linalg.norm(out_diff_view, axis=1) / sigma))
-        print('np.linalg.norm(out_diff_view, axis=1) = \n{}'.format(
-            np.linalg.norm(out_diff_view, axis=1)))
+        # out_diff_view = out_diff.reshape(
+        #     (out_diff.shape[0], out_diff.size // out_diff.shape[0]))
+        # print('np.linalg.norm(out_diff_view, axis=1) / sigma = \n{}'.format(
+        #     np.linalg.norm(out_diff_view, axis=1) / sigma))
+        # print('np.linalg.norm(out_diff_view, axis=1) = \n{}'.format(
+        #     np.linalg.norm(out_diff_view, axis=1)))
         print(f'sigma = {sigma}')
     # Print the accuracies.
     accoldavg /= num_iter
@@ -695,7 +710,8 @@ def hcr(inf_loader, model, final, num_batches, seed_torch, batch_size=16, name='
     hcrmax = np.zeros(hcr[0].shape)
     for numex in range(len(hcr)):
         hcrmax = np.maximum(hcrmax, hcr[numex])
-    print(f'hcrmax = \n{hcrmax}')
+    # print(f'hcrmax = \n{hcrmax}')
+    print("hcr maxes calculated.")
     print(f'hcrmax.shape = {hcrmax.shape}')
 
     # Save summaries, first unfiltered, then filtering out low frequencies.
@@ -712,27 +728,37 @@ def hcr(inf_loader, model, final, num_batches, seed_torch, batch_size=16, name='
                 hcrmax[im, :, :, :], axes=(1, 2), norm='ortho')
             averaged = 255 * np.sum(averaged, axis=0) / averaged.shape[0]
             img = Image.fromarray(averaged.astype(np.uint8))
-            filename = dir + '/' + 'unclipped'
+            # make directory called 'unclipped_images' if it doesn't exist
+            try:
+                os.mkdir(dir + 'unclipped')
+            except FileExistsError:
+                pass
+            filename = dir + 'unclipped/'
             if iter == 1:
-                filename += '_filtered'
+                filename += 'filtered'
             filename += str(im) + '.png'
             img.save(filename)
             # Save a clipped image.
             averaged2 = np.minimum(averaged, 15)
             img2 = Image.fromarray(averaged2.astype(np.uint8))
-            filename = dir + '/' + 'clipped'
+            # make directory called 'clipped_images' if it doesn't exist
+            try:
+                os.mkdir(dir + 'clipped')
+            except FileExistsError:
+                pass
+            filename = dir + 'clipped/'
             if iter == 1:
-                filename += '_filtered'
+                filename += 'filtered'
             filename += str(im) + '.jpg'
             img2.save(filename)
         # Histogram the best bounds.
         hist = np.histogram(hcrmax, bins=256)
         hist = [hist[0], hist[1], hist[0] / np.sum(hist[0])]
-        for ind in range(len(hist)):
-            if iter == 1:
-                print(f'filtered hist[{ind}] = \n{hist[ind]}')
-            else:
-                print(f'unfiltered hist[{ind}] = \n{hist[ind]}')
+        # for ind in range(len(hist)):
+            # if iter == 1:
+            #     print(f'filtered hist[{ind}] = \n{hist[ind]}')
+            # else:
+            #     print(f'unfiltered hist[{ind}] = \n{hist[ind]}')
         # Plot histograms of the best bounds.
         plt.figure(figsize=(3, 3))
         title = name + ' '
@@ -749,9 +775,16 @@ def hcr(inf_loader, model, final, num_batches, seed_torch, batch_size=16, name='
             plt.xlim((0, 0.02))
         elif name == 'Swin_T':
             plt.xlim((0, 0.01))
-        histogram_path = dir + '/hist/' + title.replace(' ', '_') + '.jpg'
+        
+        # make directory called 'hist' if it doesn't exist
+        try:
+            os.mkdir(dir + 'hist')
+        except FileExistsError:
+            pass
+
+        histogram_path = dir + 'hist/' + title.replace(' ', '_') + '.jpg'
         plt.savefig(histogram_path, bbox_inches='tight')
-        wandb.log({title: plt})
+        # wandb.log({title: wandb.Image(plt)})
 
 
     return hcr, hcrmax
