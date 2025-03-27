@@ -752,15 +752,15 @@ def hcr(inf_loader, model, final, num_batches, seed_torch, name='ResNet18', num_
             filename += str(im) + '.jpg'
             img2.save(filename)
         # Histogram the best bounds.
-        hist = np.histogram(hcrmax, bins=256)
-        hist = [hist[0], hist[1], hist[0] / np.sum(hist[0])]
+        hist = np.histogram(hcrmax, bins=1024)
+        # hist = [hist[0], hist[1], hist[0] / np.sum(hist[0])]
         # for ind in range(len(hist)):
             # if iter == 1:
             #     print(f'filtered hist[{ind}] = \n{hist[ind]}')
             # else:
             #     print(f'unfiltered hist[{ind}] = \n{hist[ind]}')
         # Plot histograms of the best bounds.
-        plt.figure(figsize=(3, 3))
+        plt.figure(figsize=(5, 5))
         title = name + ' '
         if iter == 0:
             title += 'unfiltered'
@@ -771,10 +771,7 @@ def hcr(inf_loader, model, final, num_batches, seed_torch, name='ResNet18', num_
         plt.xlabel('bound on the standard deviation')
         plt.ylabel('number of modes')
 
-        if name == 'ResNet18':
-            plt.xlim((0, 0.02))
-        elif name == 'Swin_T':
-            plt.xlim((0, 0.01))
+        plt.xlim((0, hcrmax.max()+1e-4))
         
         # make directory called 'hist' if it doesn't exist
         try:
@@ -784,7 +781,7 @@ def hcr(inf_loader, model, final, num_batches, seed_torch, name='ResNet18', num_
 
         histogram_path = dir + 'hist/' + title.replace(' ', '_') + '.jpg'
         plt.savefig(histogram_path, bbox_inches='tight')
-        # wandb.log({title: wandb.Image(plt)})
+        wandb.log({title: wandb.Image(plt)})
 
 
     return hcr, hcrmax
