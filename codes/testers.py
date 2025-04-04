@@ -579,12 +579,12 @@ def iterate(inf_loader, model, final, num_batches, outputsa, num_pits, diffdiv, 
 # gent.manual_seed(seed_torch)
 
 def hcr(inf_loader, model, final, num_batches, seed_torch, name='ResNet18', num_pits=10, limit=False,
-        num_iter=1, hcr_run_name='hcr_test', custom_indiff=None):
+        num_iter=1, hcr_run_name='hcr_test', custom_indiff=None, sigma_scale=2):
 
     if name == 'ResNet18':
         # Allow the upsampling not to be strictly deterministic.
         torch.use_deterministic_algorithms(False)
-        sigma_scale = 2
+        # sigma_scale = 2
         diffdiv = 500
 
         # def partition(full, ilen):
@@ -601,7 +601,7 @@ def hcr(inf_loader, model, final, num_batches, seed_torch, name='ResNet18', num_
 
         # Allow the upsampling not to be strictly deterministic.
         torch.use_deterministic_algorithms(False)
-        sigma_scale = 3
+        # sigma_scale = 3
         diffdiv = 500
 
         # def partition(full, ilen):
@@ -674,6 +674,17 @@ def hcr(inf_loader, model, final, num_batches, seed_torch, name='ResNet18', num_
         accnewavg += accnew[-1]
         print(f'accold[-1] = {accold[-1]}')
         print(f'accnew[-1] = {accnew[-1]}')
+        # check if wandb is initialized
+        if wandb.run is not None:
+            wandb.log({
+                'accold': accold[-1],
+                'accnew': accnew[-1],
+                'sigma': sigma,
+                'iter': iter,
+            })
+        else:
+            pass
+
         # Calculate the Hammersely-Chapman-Robbins bounds.
         numerator = scipy.fft.dctn(in_diff, axes=(2, 3), norm='ortho')
         numerator = np.square(numerator)
